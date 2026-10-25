@@ -1,0 +1,138 @@
+@import url('https://fonts.googleapis.com/css2?family=Chakra+Petch:wght@500;600;700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+@import 'tw-animate-css';
+
+@source not inline('overline');
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --font-display: 'Chakra Petch', ui-sans-serif, system-ui, sans-serif;
+  --font-mono: source-code-pro, Menlo, Monaco, Consolas, monospace;
+
+  --radius-lg: var(--radius);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-sm: calc(var(--radius) - 4px);
+
+  --color-background: hsl(var(--background));
+  --color-foreground: hsl(var(--foreground));
+  --color-card: hsl(var(--card));
+  --color-card-foreground: hsl(var(--card-foreground));
+  --color-popover: hsl(var(--popover));
+  --color-popover-foreground: hsl(var(--popover-foreground));
+  --color-primary: hsl(var(--primary));
+  --color-primary-foreground: hsl(var(--primary-foreground));
+  --color-secondary: hsl(var(--secondary));
+  --color-secondary-foreground: hsl(var(--secondary-foreground));
+  --color-muted: hsl(var(--muted));
+  --color-muted-foreground: hsl(var(--muted-foreground));
+  --color-accent: hsl(var(--accent));
+  --color-accent-foreground: hsl(var(--accent-foreground));
+  --color-destructive: hsl(var(--destructive));
+  --color-destructive-foreground: hsl(var(--destructive-foreground));
+  --color-border: hsl(var(--border));
+  --color-input: hsl(var(--input));
+  --color-ring: hsl(var(--ring));
+}
+
+@layer base {
+  :root {
+    --background: 222 47% 5%;
+    --foreground: 180 15% 92%;
+    --card: 220 40% 8%;
+    --card-foreground: 180 12% 92%;
+    --popover: 220 42% 7%;
+    --popover-foreground: 180 12% 92%;
+    --primary: 162 90% 45%;
+    --primary-foreground: 220 47% 6%;
+    --secondary: 220 30% 14%;
+    --secondary-foreground: 180 12% 90%;
+    --muted: 220 25% 13%;
+    --muted-foreground: 200 10% 62%;
+    --accent: 190 95% 50%;
+    --accent-foreground: 220 47% 6%;
+    --destructive: 0 75% 55%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 200 25% 18%;
+    --input: 200 25% 16%;
+    --ring: 162 90% 45%;
+    --radius: 0.8rem;
+    --neon: 162 90% 50%;
+    --neon2: 190 95% 55%;
+  }
+}
+
+@property --ang {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+@layer base {
+  * { border-color: hsl(var(--border)); }
+  html, body, #root { height: 100%; }
+  body {
+    margin: 0;
+    font-family: var(--font-sans);
+    background: radial-gradient(1200px 600px at 10% -10%, hsl(162 90% 12% / 0.35), transparent 60%),
+                radial-gradient(1000px 500px at 100% 0%, hsl(190 90% 14% / 0.3), transparent 55%),
+                hsl(var(--background));
+    color: hsl(var(--foreground));
+    -webkit-font-smoothing: antialiased;
+  }
+  h1, h2, h3, .font-display { font-family: var(--font-display); letter-spacing: 0.01em; }
+  button:not(:disabled), [role='button']:not(:disabled) { cursor: pointer; }
+  ::selection { background: hsl(var(--neon) / 0.35); }
+}
+
+@layer components {
+  .glass {
+    background: linear-gradient(180deg, hsl(220 40% 11% / 0.9), hsl(220 42% 8% / 0.9));
+    border: 1px solid hsl(var(--border));
+    backdrop-filter: blur(14px);
+  }
+  .neon-text { color: hsl(var(--neon)); text-shadow: 0 0 14px hsl(var(--neon) / 0.55); }
+  .neon-ring { box-shadow: 0 0 0 1px hsl(var(--neon) / 0.4), 0 0 22px hsl(var(--neon) / 0.25); }
+
+  .neon-btn {
+    position: relative; z-index: 0; border-radius: 0.8rem;
+    padding: 0.62rem 1.15rem; font-weight: 700; color: hsl(var(--primary-foreground));
+    background: linear-gradient(120deg, hsl(var(--neon)), hsl(var(--neon2)));
+    transition: transform .15s ease, box-shadow .2s ease, filter .2s ease;
+    box-shadow: 0 0 18px hsl(var(--neon) / 0.35);
+  }
+  .neon-btn::before {
+    content: ''; position: absolute; inset: -2px; border-radius: inherit; z-index: -1;
+    background: conic-gradient(from var(--ang), transparent 0 55%, hsl(var(--neon2)) 70%, hsl(var(--neon)) 80%, transparent 92%);
+    animation: spin 3.5s linear infinite; opacity: .9;
+  }
+  .neon-btn:hover, .neon-btn:active { transform: translateY(-1px); filter: brightness(1.08); box-shadow: 0 0 30px hsl(var(--neon) / 0.6); }
+  .neon-btn:disabled { opacity: .5; filter: grayscale(.4); }
+
+  .btn-ghost {
+    border: 1px solid hsl(var(--border)); border-radius: 0.8rem; padding: 0.55rem 1rem;
+    background: hsl(var(--secondary)); color: hsl(var(--secondary-foreground)); font-weight: 600;
+    transition: all .15s ease;
+  }
+  .btn-ghost:hover { border-color: hsl(var(--neon) / 0.6); color: hsl(var(--neon)); }
+
+  .field {
+    width: 100%; border-radius: 0.7rem; padding: 0.6rem 0.85rem;
+    background: hsl(var(--input)); border: 1px solid hsl(var(--border));
+    color: hsl(var(--foreground)); outline: none; transition: border-color .15s, box-shadow .15s;
+  }
+  .field:focus { border-color: hsl(var(--neon)); box-shadow: 0 0 0 3px hsl(var(--neon) / 0.18); }
+  .field::placeholder { color: hsl(var(--muted-foreground)); }
+
+  .card-panel { border-radius: 1rem; }
+  .badge { display: inline-flex; align-items: center; gap: .3rem; padding: .18rem .6rem; border-radius: 999px; font-size: .72rem; font-weight: 700; }
+}
+
+@keyframes spin { to { --ang: 360deg; } }
+@keyframes rise { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+.rise { animation: rise .4s ease both; }
+
+@media (prefers-reduced-motion: reduce) {
+  .neon-btn::before { animation: none; }
+  .rise { animation: none; }
+}
