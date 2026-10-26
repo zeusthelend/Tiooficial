@@ -27,7 +27,7 @@ export default function Davs() {
   const load = async () => {
     const params = {};
     if (filters.situacao) params.status = filters.situacao;
-    if (filters.categoria) params.categoria = filters.categoria;
+    if (filters.categoria) params.category = filters.categoria;
     if (filters.q) params.q = filters.q;
     const { data } = await api.get("/davs", { params });
     // Normalize backend field names to the view model used by this page.
