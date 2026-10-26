@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import api from "@/lib/api";
+import LiveKitCall from "@/components/LiveKitCall";
 import { useAuth } from "@/context/AuthContext";
 import { Btn, EmptyState, Spinner } from "@/components/kit";
 import { MessageCircle, Phone, Video, Send, Search, Users, Mic, MicOff, VideoOff, PhoneOff, Paperclip, Circle, ArrowLeft, ShieldCheck } from "lucide-react";
@@ -84,46 +85,39 @@ export default function Comunicacao() {
     await api.post(`/conversas/${cid}/chamadas/sinais`,{to_user:to,signal_type:type,payload});
   };
   const cleanupCall=async(notify=true)=>{
-    if(notify&&call) { try{await sendSignal("hangup",null,call.to,call.conversationId);}catch{} }
-    if(peer.current){peer.current.close();peer.current=null;}
-    localStream.current?.getTracks().forEach(t=>t.stop()); localStream.current=null;
-    if(localVideo.current) localVideo.current.srcObject=null;
-    if(remoteVideo.current) remoteVideo.current.srcObject=null;
-    setCall(null); setCallStatus(""); setMuted(false); setCameraOff(false);
-  };
-  const makePeer=async(to,cid)=>{
-    let iceServers=[{urls:"stun:stun.l.google.com:19302"}];
-    try { const {data}=await api.get("/chamadas/ice-servers"); if(data.iceServers?.length) iceServers=data.iceServers; } catch {}
-    const pc=new RTCPeerConnection({iceServers});
-    peer.current=pc;
-    pc.onicecandidate=(e)=>{if(e.candidate) sendSignal("ice",e.candidate.toJSON(),to,cid).catch(()=>{});};
-    pc.ontrack=(e)=>{if(remoteVideo.current) remoteVideo.current.srcObject=e.streams[0];};
-    pc.onconnectionstatechange=()=>{if(["failed","disconnected","closed"].includes(pc.connectionState)) setCallStatus("Conexão instável. Verifique a rede.");};
-    localStream.current?.getTracks().forEach(t=>pc.addTrack(t,localStream.current));
-    return pc;
+    const current=call;
+    if(notify&&current) {
+      try { await sendSignal("hangup",null,current.to,current.conversationId); } catch {}
+    }
+    setCall(null);
+    setCallStatus("");
+    setMuted(false);
+    setCameraOff(false);
   };
   const startCall=async(kind)=>{
     if(!active){toast.error("Abra uma conversa antes de ligar.");return;}
-    try{
-      const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:kind==="video"});
-      localStream.current=stream; setCall({kind,direction:"outgoing",to:otherId,conversationId:active.id});
-      setCallStatus("Chamando…"); if(localVideo.current)localVideo.current.srcObject=stream;
-      const pc=await makePeer(otherId,active.id); const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
-      await sendSignal("offer",{sdp:offer.sdp,kind},otherId,active.id);
-    }catch(e){await cleanupCall(false);toast.error(e.name==="NotAllowedError"?"Permita o uso do microfone e da câmera nas configurações do navegador.":"Não foi possível iniciar a chamada. Verifique as permissões do dispositivo.");}
+    if(!globalThis.crypto?.randomUUID){toast.error("Este navegador não oferece suporte seguro para iniciar chamadas.");return;}
+    const roomName=`tio-${active.id}-${crypto.randomUUID()}`;
+    try {
+      setCall({kind,direction:"outgoing",to:otherId,conversationId:active.id,roomName});
+      setCallStatus("Chamando…");
+      await sendSignal("offer",{room:roomName,kind},otherId,active.id);
+    } catch(e) {
+      setCall(null);
+      toast.error(e.response?.data?.detail || "Não foi possível iniciar a chamada.");
+    }
   };
   const answerCall=async(signal)=>{
-    try{
-      const kind=signal.payload?.kind==="video"?"video":"audio";
-      const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:kind==="video"});
-      localStream.current=stream; setCall({kind,direction:"incoming",to:signal.from_user,conversationId:signal.conversation_id});
-      setCallStatus("Conectando…"); if(localVideo.current)localVideo.current.srcObject=stream;
-      const pc=await makePeer(signal.from_user,signal.conversation_id);
-      await pc.setRemoteDescription({type:"offer",sdp:signal.payload.sdp});
-      const answer=await pc.createAnswer(); await pc.setLocalDescription(answer);
-      await api.post(`/conversas/${signal.conversation_id}/chamadas/sinais`,{to_user:signal.from_user,signal_type:"answer",payload:{sdp:answer.sdp}});
-      setCallStatus("Em chamada");
-    }catch(e){toast.error("Não foi possível atender. Verifique as permissões do microfone/câmera.");await cleanupCall(false);}
+    const roomName=signal.payload?.room;
+    if(!roomName){toast.error("O convite de chamada não contém uma sala LiveKit válida.");return;}
+    setCall({kind:signal.payload?.kind==="video"?"video":"audio",direction:"incoming",to:signal.from_user,conversationId:signal.conversation_id,roomName});
+    setCallStatus("Conectando ao LiveKit…");
+    try {
+      await api.post(`/conversas/${signal.conversation_id}/chamadas/sinais`,{to_user:signal.from_user,signal_type:"answer",payload:{room:roomName}});
+    } catch(e) {
+      setCall(null);
+      toast.error(e.response?.data?.detail || "Não foi possível aceitar a chamada.");
+    }
   };
   useEffect(()=>{
     let live=true;
@@ -139,8 +133,7 @@ export default function Comunicacao() {
             if(accept) await answerCall(s);
             else await api.post(`/conversas/${s.conversation_id}/chamadas/sinais`,{to_user:s.from_user,signal_type:"decline",payload:null});
           } else if(call && s.conversation_id===call.conversationId && s.from_user===call.to){
-            if(s.signal_type==="answer"&&peer.current){await peer.current.setRemoteDescription({type:"answer",sdp:s.payload.sdp});setCallStatus("Em chamada");}
-            if(s.signal_type==="ice"&&peer.current&&s.payload){try{await peer.current.addIceCandidate(s.payload);}catch{}}
+            if(s.signal_type==="answer"){setCallStatus("A outra pessoa aceitou a chamada.");}
             if(["hangup","decline","busy"].includes(s.signal_type)){toast.message(s.signal_type==="decline"?"A chamada foi recusada.":"A chamada foi encerrada.");await cleanupCall(false);}
           }
         }
@@ -173,6 +166,6 @@ export default function Comunicacao() {
         </>:<div className="flex-1 grid place-items-center p-8 text-center"><div className="max-w-md"><div className="w-20 h-20 mx-auto rounded-3xl bg-primary/10 neon-ring grid place-items-center"><MessageCircle className="w-9 h-9 text-primary"/></div><h2 className="font-display text-2xl font-bold mt-6">Fale com sua equipe</h2><p className="text-sm text-muted-foreground mt-2">Escolha um funcionário para conversar, ou inicie uma chamada de áudio ou vídeo com um toque.</p><div className="grid grid-cols-3 gap-3 mt-7"><div className="glass rounded-xl p-3"><MessageCircle className="w-5 h-5 mx-auto text-primary"/><p className="text-xs mt-2">Chat</p></div><div className="glass rounded-xl p-3"><Phone className="w-5 h-5 mx-auto text-primary"/><p className="text-xs mt-2">Áudio</p></div><div className="glass rounded-xl p-3"><Video className="w-5 h-5 mx-auto text-primary"/><p className="text-xs mt-2">Vídeo</p></div></div></div></div>}
       </section>
     </div>
-    {call&&<div className="fixed inset-0 z-[70] bg-slate-950/95 backdrop-blur-xl grid place-items-center p-4"><div className="w-full max-w-3xl"><div className="flex items-center justify-between mb-4"><div><p className="text-primary text-xs uppercase tracking-widest font-bold">{call.kind==="video"?"Videochamada":"Chamada de áudio"}</p><h2 className="font-display text-2xl font-bold mt-1">{remoteName||activePerson.name}</h2><p className="text-sm text-muted-foreground">{callStatus}</p></div><span className="badge bg-primary/10 text-primary">P2P WebRTC</span></div><div className={`grid gap-3 ${call.kind==="video"?"md:grid-cols-2":"grid-cols-1"}`}><div className="relative aspect-video bg-slate-900 rounded-2xl overflow-hidden grid place-items-center"><video ref={remoteVideo} autoPlay playsInline className="w-full h-full object-cover"/>{call.kind==="audio"&&<div className="absolute inset-0 grid place-items-center"><div className="w-24 h-24 rounded-full bg-primary/15 grid place-items-center text-3xl font-bold text-primary">{initials(remoteName||activePerson.name)}</div></div>}<span className="absolute bottom-3 left-3 badge bg-black/50">Participante</span></div>{call.kind==="video"&&<div className="relative aspect-video bg-slate-900 rounded-2xl overflow-hidden"><video ref={localVideo} autoPlay playsInline muted className="w-full h-full object-cover"/><span className="absolute bottom-3 left-3 badge bg-black/50">Você</span></div>}</div><div className="flex justify-center gap-3 mt-6"><button className={`rounded-full w-12 h-12 grid place-items-center ${muted?"bg-rose-500":"bg-white/10"}`} onClick={()=>{localStream.current?.getAudioTracks().forEach(t=>t.enabled=muted);setMuted(!muted);}} aria-label="Silenciar">{muted?<MicOff/>:<Mic/>}</button>{call.kind==="video"&&<button className={`rounded-full w-12 h-12 grid place-items-center ${cameraOff?"bg-rose-500":"bg-white/10"}`} onClick={()=>{localStream.current?.getVideoTracks().forEach(t=>t.enabled=cameraOff);setCameraOff(!cameraOff);}} aria-label="Desligar câmera">{cameraOff?<VideoOff/>:<Video/>}</button>}<button className="rounded-full w-14 h-14 bg-rose-600 hover:bg-rose-500 grid place-items-center shadow-lg shadow-rose-950/50" onClick={()=>cleanupCall()} aria-label="Encerrar chamada"><PhoneOff/></button></div><p className="text-xs text-center text-muted-foreground mt-4">As chamadas dependem das permissões do navegador e da conectividade entre dispositivos.</p></div></div>}
+    {call&&<LiveKitCall roomName={call.roomName} conversationId={call.conversationId} kind={call.kind} displayName={remoteName||activePerson.name} onClose={()=>cleanupCall()}/>}
   </div>;
 }
