@@ -14,7 +14,7 @@ const CATEGORIAS = [["dav", "DAV"], ["prefeitura", "Prefeitura"], ["reservado", 
 
 export default function Davs() {
   const { user } = useAuth();
-  const canManageOthers = ["admin", "gerente", "encarregado", "estoque", "encarregado_estoque"].includes(user.role);
+  const canManageOthers = Boolean(user.is_manager || user.can_stock);
   const [davs, setDavs] = useState(null);
   const [vendedores, setVendedores] = useState([]);
   const [filters, setFilters] = useState({ situacao: "", categoria: "", q: "" });
@@ -80,7 +80,9 @@ export default function Davs() {
 
   const remove = async (d) => {
     if (!window.confirm(`Excluir o DAV ${d.numero}? Esta ação não pode ser desfeita.`)) return;
-    try { await api.delete(`/davs/${d.id}`); toast.success("DAV excluído."); load(); }
+    const pin = window.prompt("Informe o PIN de segurança para excluir este DAV:");
+    if (!pin) return;
+    try { await api.delete(`/davs/${d.id}`, { params: { pin } }); toast.success("DAV excluído."); load(); }
     catch (e) { toast.error(apiError(e.response?.data?.detail)); }
   };
 
