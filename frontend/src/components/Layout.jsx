@@ -3,7 +3,7 @@ import { NavLink, useNavigate, Outlet } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import api from "@/lib/api";
 import {
-  LayoutDashboard, FileText, Boxes, Users, BarChart3, Bot, Bell, LogOut, Menu, X, Activity,
+  LayoutDashboard, FileText, Boxes, Users, BarChart3, Bot, Bell, LogOut, Menu, X, Activity, MessageCircle,
 } from "lucide-react";
 
 const NAV = [
@@ -13,6 +13,7 @@ const NAV = [
   { to: "/estoque", label: "Estoque & Ocorrências", icon: Boxes, roles: ["admin", "gerente", "encarregado", "estoque", "encarregado_estoque"] },
   { to: "/funcionarios", label: "Funcionários", icon: Users, roles: ["admin"] },
   { to: "/assistente", label: "Assistente IA", icon: Bot, roles: "*" },
+  { to: "/comunicacao", label: "Chat e chamadas", icon: MessageCircle, roles: "*" },
   { to: "/notificacoes", label: "Notificações", icon: Bell, roles: "*" },
 ];
 
