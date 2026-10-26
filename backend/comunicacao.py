@@ -111,3 +111,36 @@ def ice_servers(user: dict = Depends(get_current_user)):
         servers.append({"urls": [u.strip() for u in turn_url.split(",") if u.strip()],
                         "username": turn_username, "credential": turn_credential})
     return {"iceServers": servers, "turnConfigured": len(servers) > 1}
+
+
+class LiveKitTokenIn(BaseModel):
+    room: str = Field(min_length=1, max_length=128, pattern=r"^[A-Za-z0-9_-]+$")
+    conversation_id: UUID
+
+
+@api.post("/chamadas/livekit-token")
+def livekit_token(body: LiveKitTokenIn, user: dict = Depends(get_current_user)):
+    """Issue a short-lived room token; LiveKit API secret never leaves the backend."""
+    _conversation(str(body.conversation_id), user)
+    api_key = os.environ.get("LIVEKIT_API_KEY")
+    api_secret = os.environ.get("LIVEKIT_API_SECRET")
+    livekit_url = os.environ.get("LIVEKIT_URL")
+    if not api_key or not api_secret or not livekit_url:
+        raise HTTPException(status_code=503, detail="LiveKit não está configurado no servidor.")
+    now = int(datetime.now(timezone.utc).timestamp())
+    claims = {
+        "iss": api_key,
+        "sub": user["id"],
+        "nbf": now,
+        "exp": now + 60 * 60,
+        "name": user.get("name") or user.get("email") or user["id"],
+        "video": {
+            "roomJoin": True,
+            "room": body.room,
+            "canPublish": True,
+            "canSubscribe": True,
+            "canPublishData": True,
+        },
+    }
+    token = __import__("jwt").encode(claims, api_secret, algorithm="HS256")
+    return {"url": livekit_url, "token": token, "room": body.room, "expiresIn": 3600}
