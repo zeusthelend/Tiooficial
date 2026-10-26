@@ -5,15 +5,16 @@ import { Btn, Field, Modal, Spinner, StatusBadge, EmptyState } from "@/component
 import { toast } from "sonner";
 import { Plus, Search, History, Trash2, Pencil } from "lucide-react";
 
+// Values must match the FastAPI/Supabase API contract.
 const SITUACOES = [
-  ["em_andamento", "Em andamento"], ["reservado", "Reservado"],
-  ["desistiu", "Desistiu"], ["concluida", "Venda concluída"], ["vencido", "Vencido"],
+  ["aberto", "Aberto"], ["em_andamento", "Em andamento"],
+  ["concluido", "Venda concluída"], ["cancelado", "Cancelado"],
 ];
 const CATEGORIAS = [["dav", "DAV"], ["prefeitura", "Prefeitura"], ["reservado", "Reservado"]];
 
 export default function Davs() {
   const { user } = useAuth();
-  const canManageOthers = ["admin", "gerente", "encarregado", "estoque", "encarregado_estoque"].includes(user.role);
+  const canManageOthers = Boolean(user.is_manager || user.can_stock);
   const [davs, setDavs] = useState(null);
   const [vendedores, setVendedores] = useState([]);
   const [filters, setFilters] = useState({ situacao: "", categoria: "", q: "" });
@@ -25,11 +26,22 @@ export default function Davs() {
 
   const load = async () => {
     const params = {};
-    if (filters.situacao) params.situacao = filters.situacao;
-    if (filters.categoria) params.categoria = filters.categoria;
+    if (filters.situacao) params.status = filters.situacao;
+    if (filters.categoria) params.category = filters.categoria;
     if (filters.q) params.q = filters.q;
     const { data } = await api.get("/davs", { params });
-    setDavs(data.davs);
+    // Normalize backend field names to the view model used by this page.
+    setDavs((data.davs || []).map((d) => ({
+      ...d,
+      numero: d.dav_number,
+      vendedor_id: d.seller_id,
+      vendedor_nome: d.seller_name,
+      data_vencimento: d.due_at,
+      valor: d.dav_value,
+      situacao: d.status,
+      descricao: d.description,
+      historico: d.historico || [],
+    })));
   };
 
   useEffect(() => { load(); /* eslint-disable-next-line */ }, [filters.situacao, filters.categoria]);
@@ -37,7 +49,7 @@ export default function Davs() {
     if (canManageOthers) api.get("/users/vendedores").then(({ data }) => setVendedores(data.vendedores)).catch(() => {});
   }, [canManageOthers]);
 
-  const openNew = () => { setEditing(null); setForm({ categoria: "dav", situacao: "em_andamento", valor: 0 }); setModal(true); };
+  const openNew = () => { setEditing(null); setForm({ categoria: "dav", situacao: "aberto", valor: 0 }); setModal(true); };
   const openEdit = (d) => { setEditing(d); setForm({ ...d }); setModal(true); };
 
   const save = async (e) => {
@@ -46,17 +58,17 @@ export default function Davs() {
     try {
       if (editing) {
         await api.patch(`/davs/${editing.id}`, {
-          numero: form.numero, categoria: form.categoria, situacao: form.situacao,
-          descricao: form.descricao, valor: Number(form.valor) || 0,
-          data_inicial: form.data_inicial || null, data_vencimento: form.data_vencimento || null,
+          dav_number: form.numero, category: form.categoria, status: form.situacao,
+          description: form.descricao, dav_value: Number(form.valor) || 0,
+          due_at: form.data_vencimento || null,
         });
         toast.success("DAV atualizado.");
       } else {
         await api.post("/davs", {
-          numero: form.numero, categoria: form.categoria, situacao: form.situacao,
-          descricao: form.descricao, valor: Number(form.valor) || 0,
-          vendedor_id: canManageOthers ? form.vendedor_id : undefined,
-          data_inicial: form.data_inicial || null, data_vencimento: form.data_vencimento || null,
+          dav_number: form.numero, category: form.categoria, status: form.situacao,
+          description: form.descricao, dav_value: Number(form.valor) || 0,
+          seller_id: canManageOthers ? form.vendedor_id : undefined,
+          due_at: form.data_vencimento || null,
         });
         toast.success("DAV criado.");
       }
@@ -68,7 +80,9 @@ export default function Davs() {
 
   const remove = async (d) => {
     if (!window.confirm(`Excluir o DAV ${d.numero}? Esta ação não pode ser desfeita.`)) return;
-    try { await api.delete(`/davs/${d.id}`); toast.success("DAV excluído."); load(); }
+    const pin = window.prompt("Informe o PIN de segurança para excluir este DAV:");
+    if (!pin) return;
+    try { await api.delete(`/davs/${d.id}`, { params: { pin } }); toast.success("DAV excluído."); load(); }
     catch (e) { toast.error(apiError(e.response?.data?.detail)); }
   };
 
