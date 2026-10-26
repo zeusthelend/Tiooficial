@@ -620,6 +620,9 @@ async def ai_chat(body: AiIn, user: dict = Depends(get_current_user)):
     return {"reply": reply}
 
 
+# Register communication endpoints before mounting the API router.
+import comunicacao  # noqa: F401
+
 app.include_router(api)
 app.add_middleware(
     CORSMiddleware,

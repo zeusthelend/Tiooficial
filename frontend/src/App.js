@@ -12,6 +12,7 @@ import Funcionarios from "@/pages/Funcionarios";
 import Relatorios from "@/pages/Relatorios";
 import Assistente from "@/pages/Assistente";
 import Notificacoes from "@/pages/Notificacoes";
+import Comunicacao from "@/pages/Comunicacao";
 
 function Gate({ children }) {
   const { user, checking } = useAuth();
@@ -36,6 +37,7 @@ function App() {
               <Route path="/funcionarios" element={<Funcionarios />} />
               <Route path="/assistente" element={<Assistente />} />
               <Route path="/notificacoes" element={<Notificacoes />} />
+              <Route path="/comunicacao" element={<Comunicacao />} />
             </Route>
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
