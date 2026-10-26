@@ -3,6 +3,7 @@ Requires the additive SQL migration in supabase_migration_communication.sql.
 """
 from datetime import datetime, timezone
 import os
+import jwt
 from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
@@ -142,5 +143,5 @@ def livekit_token(body: LiveKitTokenIn, user: dict = Depends(get_current_user)):
             "canPublishData": True,
         },
     }
-    token = __import__("jwt").encode(claims, api_secret, algorithm="HS256")
+    token = jwt.encode(claims, api_secret, algorithm="HS256")
     return {"url": livekit_url, "token": token, "room": body.room, "expiresIn": 3600}
