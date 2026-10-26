@@ -84,15 +84,17 @@ export default function Comunicacao() {
     await api.post(`/conversas/${cid}/chamadas/sinais`,{to_user:to,signal_type:type,payload});
   };
   const cleanupCall=async(notify=true)=>{
-    if(notify&&call?.direction==="outgoing") { try{await sendSignal("hangup",null,call.to,call.conversationId);}catch{} }
+    if(notify&&call) { try{await sendSignal("hangup",null,call.to,call.conversationId);}catch{} }
     if(peer.current){peer.current.close();peer.current=null;}
     localStream.current?.getTracks().forEach(t=>t.stop()); localStream.current=null;
     if(localVideo.current) localVideo.current.srcObject=null;
     if(remoteVideo.current) remoteVideo.current.srcObject=null;
     setCall(null); setCallStatus(""); setMuted(false); setCameraOff(false);
   };
-  const makePeer=(to,cid)=>{
-    const pc=new RTCPeerConnection({iceServers:[{urls:"stun:stun.l.google.com:19302"}]});
+  const makePeer=async(to,cid)=>{
+    let iceServers=[{urls:"stun:stun.l.google.com:19302"}];
+    try { const {data}=await api.get("/chamadas/ice-servers"); if(data.iceServers?.length) iceServers=data.iceServers; } catch {}
+    const pc=new RTCPeerConnection({iceServers});
     peer.current=pc;
     pc.onicecandidate=(e)=>{if(e.candidate) sendSignal("ice",e.candidate.toJSON(),to,cid).catch(()=>{});};
     pc.ontrack=(e)=>{if(remoteVideo.current) remoteVideo.current.srcObject=e.streams[0];};
@@ -106,7 +108,7 @@ export default function Comunicacao() {
       const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:kind==="video"});
       localStream.current=stream; setCall({kind,direction:"outgoing",to:otherId,conversationId:active.id});
       setCallStatus("Chamando…"); if(localVideo.current)localVideo.current.srcObject=stream;
-      const pc=makePeer(otherId,active.id); const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
+      const pc=await makePeer(otherId,active.id); const offer=await pc.createOffer(); await pc.setLocalDescription(offer);
       await sendSignal("offer",{sdp:offer.sdp,kind},otherId,active.id);
     }catch(e){await cleanupCall(false);toast.error(e.name==="NotAllowedError"?"Permita o uso do microfone e da câmera nas configurações do navegador.":"Não foi possível iniciar a chamada. Verifique as permissões do dispositivo.");}
   };
@@ -116,7 +118,7 @@ export default function Comunicacao() {
       const stream=await navigator.mediaDevices.getUserMedia({audio:true,video:kind==="video"});
       localStream.current=stream; setCall({kind,direction:"incoming",to:signal.from_user,conversationId:signal.conversation_id});
       setCallStatus("Conectando…"); if(localVideo.current)localVideo.current.srcObject=stream;
-      const pc=makePeer(signal.from_user,signal.conversation_id);
+      const pc=await makePeer(signal.from_user,signal.conversation_id);
       await pc.setRemoteDescription({type:"offer",sdp:signal.payload.sdp});
       const answer=await pc.createAnswer(); await pc.setLocalDescription(answer);
       await api.post(`/conversas/${signal.conversation_id}/chamadas/sinais`,{to_user:signal.from_user,signal_type:"answer",payload:{sdp:answer.sdp}});
