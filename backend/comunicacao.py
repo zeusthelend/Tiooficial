@@ -2,6 +2,7 @@
 Requires the additive SQL migration in supabase_migration_communication.sql.
 """
 from datetime import datetime, timezone
+import os
 from typing import Optional
 from uuid import UUID
 from pydantic import BaseModel, Field
@@ -97,3 +98,16 @@ def send_signal(cid: str, body: SignalIn, user: dict = Depends(get_current_user)
     if not rows:
         raise HTTPException(status_code=403, detail="Não foi possível enviar o sinal da chamada.")
     return {"sinal": rows[0]}
+
+
+@api.get("/chamadas/ice-servers")
+def ice_servers(user: dict = Depends(get_current_user)):
+    # Configure TURN_URL, TURN_USERNAME and TURN_CREDENTIAL in the deployment environment.
+    servers = [{"urls": ["stun:stun.l.google.com:19302"]}]
+    turn_url = os.environ.get("TURN_URL")
+    turn_username = os.environ.get("TURN_USERNAME")
+    turn_credential = os.environ.get("TURN_CREDENTIAL")
+    if turn_url and turn_username and turn_credential:
+        servers.append({"urls": [u.strip() for u in turn_url.split(",") if u.strip()],
+                        "username": turn_username, "credential": turn_credential})
+    return {"iceServers": servers, "turnConfigured": len(servers) > 1}
